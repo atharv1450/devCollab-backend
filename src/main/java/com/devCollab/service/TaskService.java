@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Service
 @RequiredArgsConstructor
@@ -16,6 +17,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final ActivityService activityService;
 
     public TaskResponse createTask(Long projectId, TaskRequest request) {
         Project project = projectRepository.findById(projectId)
@@ -36,7 +38,9 @@ public class TaskService {
                 .assignee(assignee)
                 .build();
 
-        return toResponse(taskRepository.save(task));
+        Task savedTask = taskRepository.save(task);
+        activityService.logAndNotify(project, getCurrentUser(), "created", "Task", savedTask.getTitle());
+        return toResponse(savedTask);
     }
 
     public List<TaskResponse> getTasksByProject(Long projectId, TaskStatus status) {
@@ -83,4 +87,11 @@ public class TaskService {
         res.setUpdatedAt(task.getUpdatedAt());
         return res;
     }
+    private User getCurrentUser() {
+        String email = SecurityContextHolder.getContext()
+                .getAuthentication().getName();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
 }
